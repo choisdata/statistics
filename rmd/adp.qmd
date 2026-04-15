@@ -1,0 +1,267 @@
+---
+title: "prepare ADP"
+author: "Choi YS"
+date: last-modified
+format: 
+  html:
+    toc: true
+    code-fold: true
+    theme: cosmo
+execute:
+  echo: false
+  message: false
+  warning: false
+---
+
+```{r}
+library(dplyr)
+library(stringr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+library(tidymodels)
+library(caret)
+library(car)
+library(DataExplorer)
+library(skimr)
+library(palmerpenguins)
+```
+
+# 1. 통계적 가설 검정
+
+## 1-1. 수치형 변수(평균 비교)
+
+### 단일집단검정
+
+-   일표본 T-검정(one-sample t.test) : 한 집단의 평균이 특정값과 같은지 검정.
+-   샤피로-윌크 검정 (Shapiro-Wilk Test) : 데이터가 정규분포를 따르는지 확인하는 검정. (모든 모수 검정의 선행 단계)
+
+### 두 집단간 비교(Two-sample)
+
+-   독립표본 T-검정(Independent Two-sample t-test) : 서로다른 두집단 평균 비교(수행전 등분산검정(var.test) 먼저 필요)
+-   대응표본 T-검정(Paired t-test) : 동일 집단 전/후 차이(다이어트약 복용 전/후 체중중)
+-   윌콕슨 순위합/부호순위 검정: 정규성 가정을 만족하지 못할 때 사용하는 비모수 검정.
+
+### 세개 이상상 집단간 비교
+
+-   분산분석(ANOVA) : 3개 이상 집단 평균 비교. 사후 검정(Tukey)
+    -   일원분산분석 (One-way ANOVA): 하나의 범주형 독립변수에 따른 연속형 종속변수의 차이.
+        -   '일원'은 독립변수(원인)가 1개라는 뜻입니다. 하지만 그 원인 안에 범주(집단)가 3개 이상일 때 사용.
+        -   "강사(독립변수)에 따라 학생들의 성적(종속변수) 차이가 있는가?" 독립변수: 강사 (A강사, B강사, C강사 → 집단이 3개) 종속변수: 성적 (수치형 데이터)
+    -   이원분산분석 (Two-way ANOVA): 두 개의 독립변수와 그들 간의 상호작용 효과를 분석.
+    -   사후 검정 (Post-hoc analysis): ANOVA 결과 "차이가 있다"고 나올 경우, 구체적으로 어느 집단끼리 차이가 나는지 분석 (Tukey, Bonferroni 등).
+
+## 1-2. 범주형 변수(빈도/비율 비교)
+
+-   카이제곱검정(chisq.test)
+    -   적합도 검정: 관측값이 예상비율/예상분포 따르는지
+    -   독립성 검정 : 두 범주형 변수간에 연관성이 있는지 확인(예:성별과 선호 정당)
+    -   동질성 검정 (Test of Homogeneity): 여러 모집단에서 범주별 비율이 같은지 확인.
+
+## 1-3. 상관 및 회귀 분석 관련 검정
+
+-   상관분석 (Correlation Analysis): 두 연속형 변수 간의 선형적 관계 확인 (Pearson, Spearman).
+-   회귀 모델 검정:
+    -   F-검정: 모델이 통계적으로 유의미한가?
+    -   t-검정: 개별 회귀 계수(기울기)가 유의미한가?
+    -   잔차 분석: 선형성, 독립성, 등분산성, 정규성 가정을 만족하는가?
+
+## 참고사항
+
+-   ADP 실기에서는 **"가설 설정 -\> 유의수준(**$\alpha$) 확인 -\> 검정통계량 및 p-value 계산 -\> 채택/기각 판정"의 전 과정을 서술해야 합니다. 특히 p-value가 0.05보다 작을 때 **"귀무가설을 기각하고 대립가설을 채택한다"**는 결론을 데이터 맥락에 맞춰 쓰는 연습이 중요합니다.
+
+```{r anova}
+# 1. 데이터 준비 (iris 데이터의 품종별 Sepal.Width 비교)
+data(iris)
+
+# 2. 가정 검정 (정규성 & 등분산성)
+# 정규성 검정 (shapiro.test)
+by(iris$Sepal.Width, iris$Species, shapiro.test) 
+
+# 등분산 검정 (leveneTest는 car 패키지 필요)
+library(car)
+leveneTest(Sepal.Width ~ Species, data = iris)
+
+# 3. ANOVA 수행
+anova_result <- aov(Sepal.Width ~ Species, data = iris)
+summary(anova_result)
+
+# 4. 사후 검정 (p-value < 0.05인 경우 실행)
+TukeyHSD(anova_result)
+```
+
+```{r}
+
+```
+
+# 2. 데이터마이닝
+
+## 2-1. 지도 학습 (Supervised Learning)
+
+정답(Label)이 있는 데이터를 학습하여 예측하는 방법입니다.
+
+### 분류 (Classification)
+
+-   **의사결정나무 (Decision Tree):** 해석력이 좋아 시각화 문제로 자주 출제됩니다. (과적합 방지를 위한 가지치기 필수)
+
+-   **랜덤 포레스트 (Random Forest):** 앙상블의 기본. 배깅(Bagging) 기법을 이해해야 합니다.
+
+-   **XGBoost / LightGBM:** 실무 및 시험에서 가장 성능이 좋은 부스팅(Boosting) 모델입니다. (Hyperparameter 튜닝 포함)
+
+-   **로지스틱 회귀 (Logistic Regression):** 분류 문제의 베이스라인 모델로, 오즈비(Odds Ratio) 해석이 중요합니다.
+
+-   **나이브 베이즈 (Naive Bayes):** 텍스트 분류나 베이즈 정리를 이용한 확률적 분류.
+
+### 회귀 (Regression)
+
+-   **선형 회귀 (Linear Regression):** 다중공선성(VIF) 확인과 변수 선택법(Stepwise)이 핵심입니다.
+
+-   **규제 선형 모델 (Regularization):** Ridge(L2), Lasso(L1), ElasticNet의 차이와 페널티 항을 이해해야 합니다.
+
+## 2-2. 비지도 학습 (Unsupervised Learning)
+
+정답 없이 데이터 자체의 구조나 패턴을 찾는 방법입니다.
+
+-   **군집 분석 (Clustering):**
+
+    -   **K-Means:** 엘보우 포인트(Elbow Point)나 실루엣 계수(Silhouette Coefficient)를 통한 최적의 K 산출.
+
+    -   **계층적 군집 (Hierarchical Clustering):** 덴드로그램(Dendrogram) 시각화.
+
+    -   **DBSCAN:** 밀도 기반 군집화 (이상치 탐지에 유용).
+
+-   **차원 축소 (Dimensionality Reduction):**
+
+    -   **PCA (주성분 분석):** 설명 가능한 분산 비율(Explained Variance Ratio) 확인.
+
+-   **연관 규칙 분석 (Association Rule):** \* **Apriori 알고리즘:** 지지도(Support), 신뢰도(Confidence), 향상도(Lift) 지표 해석이 필수입니다.
+
+## 2-3. 평가 및 최적화 (Evaluation & Optimization)
+
+모델을 만드는 것보다 \*\*"이 모델이 왜 좋은가?"\*\*를 증명하는 것이 점수의 핵심입니다.
+
+-   **분류 평가 지표:** 혼동 행렬(Confusion Matrix), 정확도, 정밀도, 재현율, F1-Score, ROC-AUC 곡선.
+
+-   **회귀 평가 지표:** MSE, RMSE, MAE, $R^2$ (결정계수).
+
+-   **교차 검증 (Cross-Validation):** K-Fold, Stratified K-Fold.
+
+## 2-4. 데이터 전처리 및 변수 선택 (Preprocessing)
+
+데이터 마이닝 전 단계에서 반드시 수행해야 하며, 코드로 구현 가능해야 합니다.
+
+-   **결측치 처리:** 단순 제거 vs 평균/중위수/최빈값 대체 vs KNN/Iterative Imputer 활용.
+
+-   **이상치 탐지:** IQR(Interquartile Range) 방식, Z-score 방식.
+
+-   **데이터 변환:** 스케일링(Standard, Min-Max), 로그 변환(왜도 제거), 원-핫 인코딩(범주형 데이터).
+
+-   **변수 선택 (Feature Selection):** RFE(Recursive Feature Elimination), 모델 중요도(Feature Importance) 기반 추출.
+
+### 💡 ADP 실전 전략
+
+ADP 실기 시험에서 데이터 마이닝 파트는 가장 배점이 높고 합격의 당락을 결정짓는 핵심 구간입니다. 단순히 모델을 돌리는 것뿐만 아니라, 데이터 전처리, 모델링, 성능 평가, 그리고 비즈니스 관점의 해석까지 이어지는 파이프라인을 완벽히 숙지해야 합니다.
+
+ADP 실기는 시간이 부족합니다. 따라서 다음과 같은 **나만의 템플릿 코드**를 미리 준비하는 것이 좋습니다.
+
+1.  **시각화 템플릿:** 히스토그램, 박스플롯, 상관관계 히트맵 코드.
+
+2.  **하이퍼파라미터 튜닝:** `GridSearchCV` 또는 `RandomizedSearchCV` 기본 틀.
+
+3.  **불균형 데이터 처리:** `SMOTE` 같은 오버샘플링 기법 (분류 문제에서 자주 발생).
+
+혹시 이 중에서 \*\*"분류 모델 생성부터 평가 지표 산출까지의 전체 파이썬 코드 흐름"\*\*을 예시로 보여드릴까요? 가장 점수 비중이 큽니다.
+
+```{r random_forest}
+library(caret)
+
+# 데이터 분할 (7:3)
+set.seed(123)
+train_idx <- createDataPartition(iris$Species, p = 0.7, list = FALSE)
+train_data <- iris[train_idx, ]
+test_data <- iris[-train_idx, ]
+
+# 스케일링 (필요시 수행, Random Forest는 필수는 아님)
+# preProc <- preProcess(train_data, method = c("center", "scale"))
+# train_scaled <- predict(preProc, train_data)
+
+library(randomForest)
+
+# 모델 생성
+rf_model <- randomForest(Species ~ ., data = train_data, 
+                         ntree = 500, importance = TRUE)
+
+# 변수 중요도 확인 (ADP에서 자주 묻는 질문)
+importance(rf_model)
+varImpPlot(rf_model)
+# 예측
+pred <- predict(rf_model, test_data)
+
+# 혼동 행렬 (Confusion Matrix) 및 지표 산출
+confusionMatrix(pred, test_data$Species)
+
+```
+
+```{r linear_regression}
+# 모델 생성
+lm_model <- lm(Sepal.Length ~ ., data = train_data)
+
+# 요약 결과 확인 (p-value, R-squared 확인)
+summary(lm_model)
+
+# 다중공선성 확인 (VIF 10 이상이면 위험)
+vif(lm_model)
+
+# 잔차 진단 (회귀 분석의 4대 가정 확인)
+plot(lm_model)
+```
+
+# 3. 시계열 분석(Time Series Analysis)
+
+최근 ADP 실기에서 비중이 매우 높아진 파트입니다. 단순 회귀와는 접근 방식이 완전히 다릅니다.
+
+-   **정상성(Stationarity) 확인:** `adf.test()`(ADF 검정)를 통해 데이터가 안정적인지 확인.
+
+-   **차분(Differencing):** 비정상 시계열을 정상성 있게 변환.
+
+-   **ARIMA 모델:** `auto.arima()`를 활용한 최적 모델 결정 및 향후 N기 예측.
+
+-   **지수평활법:** Simple, Holt, Holt-Winters 모델 구분.
+
+# 4. 텍스트 마이닝 (Text Mining)
+
+비정형 데이터 분석 문제가 한 문제씩 꼭 섞여 나옵니다. R에서는 `tm`, `KoNLP`(한글), `tidytext` 패키지를 주로 사용합니다.
+
+-   **전처리:** 코퍼스(Corpus) 생성, 특수문자/숫자 제거, 불용어(Stopwords) 처리.
+
+-   **문서-단어 행렬(DTM/TDM):** 텍스트를 수치형 매트릭스로 변환.
+
+-   **워드클라우드 & 감성 분석:** 단어 빈도 시각화 및 긍정/부정 분류.
+
+-   **LDA (Topic Modeling):** 문서 집합에서 잠재적인 주제(Topic) 추출.
+
+# 5. 고급 데이터 전처리 및 차원 축소
+
+단순히 결측치를 채우는 수준을 넘어, 분석의 질을 결정하는 단계입니다.
+
+-   **불균형 데이터 처리 (Imbalanced Data):** \* 분류 문제에서 특정 클래스가 너무 적을 때 `SMOTE`, `Under/Over Sampling` 기법 적용.
+
+-   **변수 선택 (Feature Selection):** \* **Filter:** 상관계수 기반.
+
+    -   **Wrapper:** 전진 선택법(Forward), 후진 제거법(Backward), 단계적 선택법(Stepwise).
+
+    -   **Embedded:** Lasso, Ridge 회귀를 통한 변수 자동 선택.
+
+-   **차원 축소:** PCA(주성분 분석) 후 주성분 개수 결정(Scree Plot 확인).
+
+# 실전 답안 작성 요령 (가장 중요!)
+
+ADP는 결과 코드만큼 \*\*'해석'\*\*이 중요합니다. 다음 문장 구조를 외우세요.
+
+1.  **가설 설정:** "귀무가설($H_0$)은 \~이다. 대립가설($H_1$)은 \~이다."
+
+2.  **분석 수행:** (R 코드 작성)
+
+3.  **결과 해석:** "검정 통계량은 X이며, p-value는 0.0XX로 유의수준 0.05보다 작으므로 귀무가설을 기각한다."
+
+4.  **비즈니스 결론:** "따라서 A 공장과 B 공장의 제품 무게에는 통계적으로 유의미한 차이가 있다고 볼 수 있다."
