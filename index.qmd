@@ -5,8 +5,10 @@ date: last-modified
 format: 
   html:
     toc: true
-    code-fold: true
+    code-fold: false
     theme: cosmo
+    page-layout: full # 페이지 레이아웃 (full, article 등)
+    highlight-style: "github" # 코드 하이라이트 스타일 지정
 execute:
   echo: true
   message: false
@@ -14,6 +16,8 @@ execute:
 ---
 
 ```{r}
+#| code-fold: true
+
 library(dplyr)
 library(stringr)
 library(lubridate)
@@ -33,8 +37,8 @@ library(palmerpenguins)
 
 ### 단일집단검정
 
--   일표본 T-검정(one-sample t.test) : 한 집단의 평균이 특정값과 같은지 검정.
--   샤피로-윌크 검정 (Shapiro-Wilk Test) : 데이터가 정규분포를 따르는지 확인하는 검정. (모든 모수 검정의 선행 단계)
+-   **일표본 T-검정(one-sample t.test)** : 한 집단의 평균이 특정값과 같은지 검정.
+-   **샤피로-윌크 검정 (Shapiro-Wilk Test)** : 데이터가 정규분포를 따르는지 확인하는 검정. (모든 모수 검정의 선행 단계)
 
 ```{r}
 ## One-sample t-test 수행
@@ -63,13 +67,72 @@ wilcox.test(iris$Sepal.Length, mu = 5.8)
 
 ### 두 집단간 비교(Two-sample)
 
--   독립표본 T-검정(Independent Two-sample t-test) : 서로다른 두집단 평균 비교(수행전 등분산검정(var.test) 먼저 필요)
--   대응표본 T-검정(Paired t-test) : 동일 집단 전/후 차이(다이어트약 복용 전/후 체중중)
--   윌콕슨 순위합/부호순위 검정: 정규성 가정을 만족하지 못할 때 사용하는 비모수 검정.
+-   **독립표본 T-검정(Independent Two-sample t-test)** : 서로다른 두집단 평균 비교(수행전 등분산검정(var.test) 먼저 필요)
+-   **대응표본 T-검정(Paired t-test)** : 동일 집단 전/후 차이(다이어트약 복용 전/후 체중중)
+-   **윌콕슨 순위합/부호순위 검정**: 정규성 가정을 만족하지 못할 때 사용하는 비모수 검정.  
+    -  모수 검정 (Parametric test)이란 모집단의 분포가 정규분포를 따른다는 가정을 가지고 있다. 평균($\mu$)이나 분산($\sigma^2$)과 같은 '모수(Parameter)'를 이용하여 가설을 검정진행한다.(예: t-test, ANOVA)   
+    - 비모수 검정 (Non-parametric test)은 모집단이 특정 분포(정규분포 등)를 따른다는 가정을 하지 않는다. 데이터의 평균값 대신 순위(Rank)나 중앙값(Median)을 활용하며 데이터가 정규분포를 따르지 않을 때, 표본의 크기가 작을 때, 설문조사 결과(1등, 2등, 3등)처럼 수치화하기 어렵고 순서만 의미가 있는 데이터는 비모수 검정이 적합하다.
+
+
+```{r}
+# 독립 표본 t-검정의 핵심 전제 조건  
+# 독립성: 두 그룹은 서로 영향을 주지 않아야 한다.  
+# 정규성: 각 그룹의 데이터가 정규분포를 따라야 한다.  
+# 등분산성: 두 그룹의 분산이 같아야 한다다. (var.test로 확인)  
+
+# 1. 데이터 필터링 (두 그룹만 추출)
+filter_data <- iris %>% filter(Species %in% c("setosa", "versicolor"))
+
+# 2. 정규성 검정 (각 그룹별로 수행)
+shapiro.test(filter_data$Sepal.Length[filter_data$Species == "setosa"])
+shapiro.test(filter_data$Sepal.Length[filter_data$Species == "versicolor"])
+
+# 정규성 검정 결과 setosa와 versicolor 모두 정규성을 만족한다. 
+
+# 3. 등분산성 검정
+var.test(Sepal.Length ~ Species, data = filter_data)
+
+# 등분산성 검정시 p-value가 0.05보다 작으므로 두 그룹은 분산이 서로 다르다.
+
+# 4. 독립 표본 t-검정 수행
+# 등분산성 검정 결과에 따라 var.equal 설정 (p > 0.05 이면 TRUE)
+t.test(Sepal.Length ~ Species, data = filter_data, var.equal = FALSE)
+# 두그룹의 분산이 다르므로로 t.test 진행시 var.equal = False를 지정하여 Welch's t-test 를 진행한다.  
+# Welch's t-test는 표준 t-test보다 더 보수적(안전한)이면서도 분산 불일치를 보정하여 왜곡 없는 결과를 제공한다.
+# Welch's t-test 결과 두 그룹간 평균은 다르다.
+
+boxplot(Sepal.Length ~ Species, data = filter_data, 
+        main = "Sepal Length by Species", 
+        col = c("lightblue", "lightgreen"))
+```
+```{r}
+#sleep 데이터는 10명의 환자에게 두 가지 약물(group 1, group 2)을 투여하고 수면 시간의 변화를 측정한 데이터
+sleep_wide <- sleep %>% pivot_wider(names_from = group, values_from = extra)
+
+# Paired t-test는 두 데이터 쌍 간의 차이(diff = X - Y)가 0인지 검정하는 것
+#  가정: 차이값(Sepal.Length - Sepal.Width)이 정규분포를 따라야 한다.
+
+# 1. 차이값 계산
+diff_sleep <- sleep_wide$`1` - sleep_wide$`2`
+
+# 2. 정규성 검정
+shapiro.test(diff_sleep)
+# p-value가 0.05보다 작으므로 정규성을 만족하지 않는다.
+
+# 3. QQ-plot 확인
+qqnorm(diff_sleep)
+qqline(diff_sleep, col = "red")
+
+t.test(sleep_wide$`1`, sleep_wide$`2`, paired = TRUE)
+#p-value가 0.05보다 작으므로 "두 약물(또는 처치) 간에는 수면 시간에 통계적으로 유의미한 차이가 있다"고 해석된다. 하지만, 정규성을 만족하지 못했으므로, 비모수 검정인 Wilcoxon signed-rank test를 사용한다.
+wilcox.test(sleep_wide$`1`, sleep_wide$`2`, paired = TRUE)
+# wilcox.test에서도 p-value가 0.05보다 작아 약물 두 약물간에는 유의미한 차이가 있다.
+```
+
 
 ### 세개 이상상 집단간 비교
 
--   분산분석(ANOVA) : 3개 이상 집단 평균 비교. 사후 검정(Tukey)
+-   **분산분석(ANOVA)** : 3개 이상 집단 평균 비교. 사후 검정(Tukey)
     -   일원분산분석 (One-way ANOVA): 하나의 범주형 독립변수에 따른 연속형 종속변수의 차이.
         -   '일원'은 독립변수(원인)가 1개라는 뜻입니다. 하지만 그 원인 안에 범주(집단)가 3개 이상일 때 사용.
         -   "강사(독립변수)에 따라 학생들의 성적(종속변수) 차이가 있는가?" 독립변수: 강사 (A강사, B강사, C강사 → 집단이 3개) 종속변수: 성적 (수치형 데이터)
