@@ -29,6 +29,7 @@ library(car)
 library(DataExplorer)
 library(skimr)
 library(palmerpenguins)
+library(emmeans)
 ```
 
 # 1. 통계적 가설 검정
@@ -139,6 +140,96 @@ wilcox.test(sleep_wide$`1`, sleep_wide$`2`, paired = TRUE)
     -   이원분산분석 (Two-way ANOVA): 두 개의 독립변수와 그들 간의 상호작용 효과를 분석.
     -   사후 검정 (Post-hoc analysis): ANOVA 결과 "차이가 있다"고 나올 경우, 구체적으로 어느 집단끼리 차이가 나는지 분석 (Tukey, Bonferroni 등).
 
+
+```{r}
+#palmerpenguins data를 사용하여 ANOVA 분석 진행
+#palmerpenguins 데이터에서 펭귄의 종(species: Adelie, Chinstrap, Gentoo)에 따라 부리 길이(bill_length_mm)의 평균이 다른지 검정
+#ANOVA도 선행검정 필요(정규성, 등분산성, 독립성)
+#정규성: 각 종별 부리 길이가 정규분포를 따르는가?
+#등분산성: 모든 종의 부리 길이 분산이 동일한가?
+#독립성: 각 측정치는 독립적인가?
+
+
+###일원분산분석 (One-way ANOVA)
+# 1. 데이터 정제 (결측치 제거)
+penguins_clean <- penguins %>% 
+  filter(!is.na(bill_length_mm))
+
+# 2. 선행 검정: 등분산성 확인 (Levene's Test)
+car::leveneTest(bill_length_mm ~ species, data = penguins_clean)
+# p-value가 0.05보다 크므로 종간 분산이 같다.
+# 만일 p-value가 0.05보다 작아서 등분산성이 만족하지 않으면, oneway.test(..., var.equal = FALSE)를 사용해야 한다. oneway.test는 Welch’s ANOVA라고도 불리는 분석을 수행한다. 이전에 Two-sample t-test에서 등분산성이 아닐 때 Welch's t-test를 썼던 것과 동일한한 논리
+
+# 4. One-way ANOVA 수행
+anova_result <- aov(bill_length_mm ~ species, data = penguins_clean)
+summary(anova_result)
+# p-value가 0.05보다 작으므로 종간 부리길이 평균이 유의미한 차이가 있다.
+
+# 5. 사후 검정 수행
+TukeyHSD(anova_result)
+# ANOVA 결과에서 p-value가 0.05보다 작다면, "세 집단 중 적어도 어느 한 집단은 평균이 다르다"는 것을 의미한다. 하지만 정확히 어떤 종들끼리 차이가 나는지는 알려주지 않으므로 Tukey HSD 검정을 진행하여 종간 차이를 확인한다.
+
+# 6. 시각화로 확인
+plot(TukeyHSD(anova_result), las = 1)
+
+boxplot(bill_length_mm ~ species, data = penguins_clean,
+        main = "Bill Length by Species",
+        xlab = "Species", ylab = "Bill Length (mm)",
+        col = c("orange", "purple", "cyan"))
+
+
+## 등분산성을 만족하지 않을때는, oneway.test(var.equal = FALSE)를 진행한다.
+
+# Welch's ANOVA 수행
+welch_anova <- oneway.test(bill_length_mm ~ species, 
+                           data = penguins_clean, 
+                           var.equal = FALSE)
+welch_anova
+#등분산성이 깨진 상태에서의 사후 검정은 TukeyHSD가 아니라 Games-Howell 검정이라는 별도의 방법을 사용한다.
+penguins_clean %>% rstatix::games_howell_test(bill_length_mm ~ species)
+```
+```{r}
+###이원분산분석 (Two-way ANOVA)
+# Two-way ANOVA(이원 분산 분석)는 두 개의 독립 변수(범주형)가 하나의 종속 변수(연속형)에 미치는 영향을 동시에 분석하는 방법이다.
+# Two-way ANOVA에서는 단순히 각 변수의 개별 영향(주효과)뿐만 아니라, 두 변수가 결합되어 나타나는 상호작용 효과(Interaction Effect)를 확인하는 것이 핵심이다.
+# 주효과(Main Effect): 종에 따라 부리 길이가 다른가? 섬에 따라 부리 길이가 다른가?
+# 상호작용 효과: 특정 섬에 사는 특정 종의 부리 길이만 유독 더 길거나 짧은가?
+
+# Two-way ANOVA 모델 생성
+# '*' 기호는 주효과와 상호작용 효과를 모두 포함하게 한다.
+two_way_anova <- aov(bill_length_mm ~ species * island, data = penguins_clean)
+summary(two_way_anova)
+# 검정결과, species는 매우 유의미 하며, island는 유의미 하지 않는다. 하지만, 코드에서는 species * island로 입력하였으나 species:island(상호작용) 결과가 나오지 않았다. 
+# 이유는 아래와 같이 특정 섬에는 특정 종만 살고 있기 때문에 모든 종과 모든 섬의 조합을 계산할 수 없어서 R이 자동으로 상호작용 항을 제거하거나 계산하지 못하였다.
+penguins_clean %>% count(island, species)
+
+# 아래와 같은 경우는 상호작용(species:sex) 결과를 확인 할 수 있다.
+penguins_sex_clean <- penguins_clean %>% filter(!is.na(sex))
+two_way_sex <- aov(bill_length_mm ~ species * sex, data = penguins_sex_clean)
+summary(two_way_sex)
+
+#사후 검정
+TukeyHSD(two_way_sex)
+plot(TukeyHSD(two_way_sex), las = 1)
+
+# 사후 검정시 emmeans 패키지를 사용하면 TukeyHSD보다 더 유연한 분석을 할 수 있다.
+# emmeans(Estimated Marginal Means /추정된 한계 평균)의 약자로, 복잡한 통계 모델(ANOVA, 회귀분석 등)을 돌린 후 "그래서 각 그룹의 평균이 구체적으로 얼마고, 서로 어떻게 다른가?" 를 파헤치기 위해 사용하는 사후 분석 방법이다.
+# palmerpenguins처럼 그룹별 샘플 수가 다를 때(Unbalanced data), 일반적인 평균값보다 더 정확한 수정된 평균(Estimated Marginal Means)을 사용한다.
+# 회귀분석(Regression), 공분산 분석(ANCOVA), 혼합 효과 모델(Mixed Models) 등 다양한 모델에 적용가능하고, 조건 걸기가 자유로워 유연한 분석을 할 수 있다.
+
+# 성별을 고정하고 종 간의 차이를 비교
+em_species_by_sex <- emmeans(two_way_sex, ~ species | sex)
+pairs(em_species_by_sex, adjust = "tukey")
+
+# 모든 조합 간의 비교
+em_all <- emmeans(two_way_sex, pairwise ~ species * sex)
+em_all$contrasts # 상세 비교 결과만 출력
+
+# 상호작용 및 평균 지점 시각화
+emmip(two_way_sex, sex ~ species, CIs = T) #CIs는 신뢰구간(Confidence Interval)
+```
+
+
 ## 1-2. 범주형 변수(빈도/비율 비교)
 
 -   카이제곱검정(chisq.test)
@@ -158,29 +249,7 @@ wilcox.test(sleep_wide$`1`, sleep_wide$`2`, paired = TRUE)
 
 -   ADP 실기에서는 **"가설 설정 -\> 유의수준(**$\alpha$) 확인 -\> 검정통계량 및 p-value 계산 -\> 채택/기각 판정"의 전 과정을 서술해야 합니다. 특히 p-value가 0.05보다 작을 때 **"귀무가설을 기각하고 대립가설을 채택한다"**는 결론을 데이터 맥락에 맞춰 쓰는 연습이 중요합니다.
 
-```{r anova}
-# 1. 데이터 준비 (iris 데이터의 품종별 Sepal.Width 비교)
-data(iris)
 
-# 2. 가정 검정 (정규성 & 등분산성)
-# 정규성 검정 (shapiro.test)
-by(iris$Sepal.Width, iris$Species, shapiro.test) 
-
-# 등분산 검정 (leveneTest는 car 패키지 필요)
-library(car)
-leveneTest(Sepal.Width ~ Species, data = iris)
-
-# 3. ANOVA 수행
-anova_result <- aov(Sepal.Width ~ Species, data = iris)
-summary(anova_result)
-
-# 4. 사후 검정 (p-value < 0.05인 경우 실행)
-TukeyHSD(anova_result)
-```
-
-```{r}
-
-```
 
 # 2. 데이터마이닝
 

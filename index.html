@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Choi YS">
-<meta name="dcterms.date" content="2026-04-17">
+<meta name="dcterms.date" content="2026-04-23">
 
 <title>prepare ADP</title>
 <style>
@@ -167,7 +167,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">April 17, 2026</p>
+      <p class="date">April 23, 2026</p>
     </div>
   </div>
   
@@ -192,7 +192,8 @@ window.Quarto = {
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(car)</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(DataExplorer)</span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(skimr)</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(palmerpenguins)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(palmerpenguins)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(emmeans)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 <section id="통계적-가설-검정" class="level1">
@@ -423,6 +424,263 @@ alternative hypothesis: true location shift is not equal to 0</code></pre>
 <li>사후 검정 (Post-hoc analysis): ANOVA 결과 “차이가 있다”고 나올 경우, 구체적으로 어느 집단끼리 차이가 나는지 분석 (Tukey, Bonferroni 등).</li>
 </ul></li>
 </ul>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co">#palmerpenguins data를 사용하여 ANOVA 분석 진행</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="co">#palmerpenguins 데이터에서 펭귄의 종(species: Adelie, Chinstrap, Gentoo)에 따라 부리 길이(bill_length_mm)의 평균이 다른지 검정</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="co">#ANOVA도 선행검정 필요(정규성, 등분산성, 독립성)</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co">#정규성: 각 종별 부리 길이가 정규분포를 따르는가?</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="co">#등분산성: 모든 종의 부리 길이 분산이 동일한가?</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="co">#독립성: 각 측정치는 독립적인가?</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a><span class="do">###일원분산분석 (One-way ANOVA)</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 데이터 정제 (결측치 제거)</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>penguins_clean <span class="ot">&lt;-</span> penguins <span class="sc">%&gt;%</span> </span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(bill_length_mm))</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 선행 검정: 등분산성 확인 (Levene's Test)</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>car<span class="sc">::</span><span class="fu">leveneTest</span>(bill_length_mm <span class="sc">~</span> species, <span class="at">data =</span> penguins_clean)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Levene's Test for Homogeneity of Variance (center = median)
+       Df F value Pr(&gt;F)
+group   2  2.2425 0.1078
+      339               </code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># p-value가 0.05보다 크므로 종간 분산이 같다.</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 만일 p-value가 0.05보다 작아서 등분산성이 만족하지 않으면, oneway.test(..., var.equal = FALSE)를 사용해야 한다. oneway.test는 Welch’s ANOVA라고도 불리는 분석을 수행한다. 이전에 Two-sample t-test에서 등분산성이 아닐 때 Welch's t-test를 썼던 것과 동일한한 논리</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. One-way ANOVA 수행</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>anova_result <span class="ot">&lt;-</span> <span class="fu">aov</span>(bill_length_mm <span class="sc">~</span> species, <span class="at">data =</span> penguins_clean)</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(anova_result)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>             Df Sum Sq Mean Sq F value Pr(&gt;F)    
+species       2   7194    3597   410.6 &lt;2e-16 ***
+Residuals   339   2970       9                   
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># p-value가 0.05보다 작으므로 종간 부리길이 평균이 유의미한 차이가 있다.</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 사후 검정 수행</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="fu">TukeyHSD</span>(anova_result)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  Tukey multiple comparisons of means
+    95% family-wise confidence level
+
+Fit: aov(formula = bill_length_mm ~ species, data = penguins_clean)
+
+$species
+                      diff       lwr        upr     p adj
+Chinstrap-Adelie 10.042433  9.024859 11.0600064 0.0000000
+Gentoo-Adelie     8.713487  7.867194  9.5597807 0.0000000
+Gentoo-Chinstrap -1.328945 -2.381868 -0.2760231 0.0088993</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ANOVA 결과에서 p-value가 0.05보다 작다면, "세 집단 중 적어도 어느 한 집단은 평균이 다르다"는 것을 의미한다. 하지만 정확히 어떤 종들끼리 차이가 나는지는 알려주지 않으므로 Tukey HSD 검정을 진행하여 종간 차이를 확인한다.</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 시각화로 확인</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(<span class="fu">TukeyHSD</span>(anova_result), <span class="at">las =</span> <span class="dv">1</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">boxplot</span>(bill_length_mm <span class="sc">~</span> species, <span class="at">data =</span> penguins_clean,</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>        <span class="at">main =</span> <span class="st">"Bill Length by Species"</span>,</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>        <span class="at">xlab =</span> <span class="st">"Species"</span>, <span class="at">ylab =</span> <span class="st">"Bill Length (mm)"</span>,</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>        <span class="at">col =</span> <span class="fu">c</span>(<span class="st">"orange"</span>, <span class="st">"purple"</span>, <span class="st">"cyan"</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/unnamed-chunk-5-2.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="do">## 등분산성을 만족하지 않을때는, oneway.test(var.equal = FALSE)를 진행한다.</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Welch's ANOVA 수행</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>welch_anova <span class="ot">&lt;-</span> <span class="fu">oneway.test</span>(bill_length_mm <span class="sc">~</span> species, </span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>                           <span class="at">data =</span> penguins_clean, </span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>                           <span class="at">var.equal =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>welch_anova</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    One-way analysis of means (not assuming equal variances)
+
+data:  bill_length_mm and species
+F = 421.77, num df = 2.00, denom df = 166.47, p-value &lt; 2.2e-16</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co">#등분산성이 깨진 상태에서의 사후 검정은 TukeyHSD가 아니라 Games-Howell 검정이라는 별도의 방법을 사용한다.</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>penguins_clean <span class="sc">%&gt;%</span> rstatix<span class="sc">::</span><span class="fu">games_howell_test</span>(bill_length_mm <span class="sc">~</span> species)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 3 × 8
+  .y.            group1    group2 estimate conf.low conf.high p.adj p.adj.signif
+* &lt;chr&gt;          &lt;chr&gt;     &lt;chr&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;       
+1 bill_length_mm Adelie    Chins…    10.0      8.95    11.1   0     ****        
+2 bill_length_mm Adelie    Gentoo     8.71     7.88     9.54  0     ****        
+3 bill_length_mm Chinstrap Gentoo    -1.33    -2.49    -0.164 0.021 *           </code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="do">###이원분산분석 (Two-way ANOVA)</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Two-way ANOVA(이원 분산 분석)는 두 개의 독립 변수(범주형)가 하나의 종속 변수(연속형)에 미치는 영향을 동시에 분석하는 방법이다.</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Two-way ANOVA에서는 단순히 각 변수의 개별 영향(주효과)뿐만 아니라, 두 변수가 결합되어 나타나는 상호작용 효과(Interaction Effect)를 확인하는 것이 핵심이다.</span></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 주효과(Main Effect): 종에 따라 부리 길이가 다른가? 섬에 따라 부리 길이가 다른가?</span></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 상호작용 효과: 특정 섬에 사는 특정 종의 부리 길이만 유독 더 길거나 짧은가?</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Two-way ANOVA 모델 생성</span></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a><span class="co"># '*' 기호는 주효과와 상호작용 효과를 모두 포함하게 한다.</span></span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>two_way_anova <span class="ot">&lt;-</span> <span class="fu">aov</span>(bill_length_mm <span class="sc">~</span> species <span class="sc">*</span> island, <span class="at">data =</span> penguins_clean)</span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(two_way_anova)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>             Df Sum Sq Mean Sq F value Pr(&gt;F)    
+species       2   7194    3597 409.208 &lt;2e-16 ***
+island        2      7       4   0.425  0.654    
+Residuals   337   2962       9                   
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 검정결과, species는 매우 유의미 하며, island는 유의미 하지 않는다. 하지만, 코드에서는 species * island로 입력하였으나 species:island(상호작용) 결과가 나오지 않았다. </span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 이유는 아래와 같이 특정 섬에는 특정 종만 살고 있기 때문에 모든 종과 모든 섬의 조합을 계산할 수 없어서 R이 자동으로 상호작용 항을 제거하거나 계산하지 못하였다.</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>penguins_clean <span class="sc">%&gt;%</span> <span class="fu">count</span>(island, species)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 5 × 3
+  island    species       n
+  &lt;fct&gt;     &lt;fct&gt;     &lt;int&gt;
+1 Biscoe    Adelie       44
+2 Biscoe    Gentoo      123
+3 Dream     Adelie       56
+4 Dream     Chinstrap    68
+5 Torgersen Adelie       51</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 아래와 같은 경우는 상호작용(species:sex) 결과를 확인 할 수 있다.</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>penguins_sex_clean <span class="ot">&lt;-</span> penguins_clean <span class="sc">%&gt;%</span> <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(sex))</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>two_way_sex <span class="ot">&lt;-</span> <span class="fu">aov</span>(bill_length_mm <span class="sc">~</span> species <span class="sc">*</span> sex, <span class="at">data =</span> penguins_sex_clean)</span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(two_way_sex)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>             Df Sum Sq Mean Sq F value Pr(&gt;F)    
+species       2   7015    3508 654.189 &lt;2e-16 ***
+sex           1   1136    1136 211.807 &lt;2e-16 ***
+species:sex   2     24      12   2.284  0.103    
+Residuals   327   1753       5                   
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="co">#사후 검정</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="fu">TukeyHSD</span>(two_way_sex)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  Tukey multiple comparisons of means
+    95% family-wise confidence level
+
+Fit: aov(formula = bill_length_mm ~ species * sex, data = penguins_sex_clean)
+
+$species
+                      diff       lwr        upr     p adj
+Chinstrap-Adelie 10.009851  9.209424 10.8102782 0.0000000
+Gentoo-Adelie     8.744095  8.070779  9.4174106 0.0000000
+Gentoo-Chinstrap -1.265756 -2.094535 -0.4369773 0.0010847
+
+$sex
+                diff      lwr      upr p adj
+male-female 3.693368 3.194089 4.192646     0
+
+$`species:sex`
+                                     diff       lwr        upr     p adj
+Chinstrap:female-Adelie:female   9.315995  7.937732 10.6942588 0.0000000
+Gentoo:female-Adelie:female      8.306259  7.138639  9.4738788 0.0000000
+Adelie:male-Adelie:female        3.132877  2.034137  4.2316165 0.0000000
+Chinstrap:male-Adelie:female    13.836583 12.458320 15.2148470 0.0000000
+Gentoo:male-Adelie:female       12.216236 11.064727 13.3677453 0.0000000
+Gentoo:female-Chinstrap:female  -1.009736 -2.443514  0.4240412 0.3338130
+Adelie:male-Chinstrap:female    -6.183118 -7.561382 -4.8048548 0.0000000
+Chinstrap:male-Chinstrap:female  4.520588  2.910622  6.1305547 0.0000000
+Gentoo:male-Chinstrap:female     2.900241  1.479553  4.3209291 0.0000002
+Adelie:male-Gentoo:female       -5.173382 -6.341002 -4.0057622 0.0000000
+Chinstrap:male-Gentoo:female     5.530325  4.096547  6.9641020 0.0000000
+Gentoo:male-Gentoo:female        3.909977  2.692570  5.1273846 0.0000000
+Chinstrap:male-Adelie:male      10.703707  9.325443 12.0819703 0.0000000
+Gentoo:male-Adelie:male          9.083360  7.931851 10.2348686 0.0000000
+Gentoo:male-Chinstrap:male      -1.620347 -3.041035 -0.1996591 0.0149963</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(<span class="fu">TukeyHSD</span>(two_way_sex), <span class="at">las =</span> <span class="dv">1</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/unnamed-chunk-6-2.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/unnamed-chunk-6-3.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 사후 검정시 emmeans 패키지를 사용하면 TukeyHSD보다 더 유연한 분석을 할 수 있다.</span></span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="co"># emmeans(Estimated Marginal Means /추정된 한계 평균)의 약자로, 복잡한 통계 모델(ANOVA, 회귀분석 등)을 돌린 후 "그래서 각 그룹의 평균이 구체적으로 얼마고, 서로 어떻게 다른가?" 를 파헤치기 위해 사용하는 사후 분석 방법이다.</span></span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a><span class="co"># palmerpenguins처럼 그룹별 샘플 수가 다를 때(Unbalanced data), 일반적인 평균값보다 더 정확한 수정된 평균(Estimated Marginal Means)을 사용한다.</span></span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 회귀분석(Regression), 공분산 분석(ANCOVA), 혼합 효과 모델(Mixed Models) 등 다양한 모델에 적용가능하고, 조건 걸기가 자유로워 유연한 분석을 할 수 있다.</span></span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 성별을 고정하고 종 간의 차이를 비교</span></span>
+<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a>em_species_by_sex <span class="ot">&lt;-</span> <span class="fu">emmeans</span>(two_way_sex, <span class="sc">~</span> species <span class="sc">|</span> sex)</span>
+<span id="cb48-8"><a href="#cb48-8" aria-hidden="true" tabindex="-1"></a><span class="fu">pairs</span>(em_species_by_sex, <span class="at">adjust =</span> <span class="st">"tukey"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>sex = female:
+ contrast           estimate    SE  df t.ratio p.value
+ Adelie - Chinstrap    -9.32 0.481 327 -19.377 &lt;0.0001
+ Adelie - Gentoo       -8.31 0.407 327 -20.393 &lt;0.0001
+ Chinstrap - Gentoo     1.01 0.500 327   2.019  0.1093
+
+sex = male:
+ contrast           estimate    SE  df t.ratio p.value
+ Adelie - Chinstrap   -10.70 0.481 327 -22.263 &lt;0.0001
+ Adelie - Gentoo       -9.08 0.402 327 -22.613 &lt;0.0001
+ Chinstrap - Gentoo     1.62 0.496 327   3.270  0.0034
+
+P value adjustment: tukey method for comparing a family of 3 estimates </code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb50"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 모든 조합 간의 비교</span></span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a>em_all <span class="ot">&lt;-</span> <span class="fu">emmeans</span>(two_way_sex, pairwise <span class="sc">~</span> species <span class="sc">*</span> sex)</span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a>em_all<span class="sc">$</span>contrasts <span class="co"># 상세 비교 결과만 출력</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> contrast                          estimate    SE  df t.ratio p.value
+ Adelie female - Chinstrap female     -9.32 0.481 327 -19.377 &lt;0.0001
+ Adelie female - Gentoo female        -8.31 0.407 327 -20.393 &lt;0.0001
+ Adelie female - Adelie male          -3.13 0.383 327  -8.174 &lt;0.0001
+ Adelie female - Chinstrap male      -13.84 0.481 327 -28.779 &lt;0.0001
+ Adelie female - Gentoo male         -12.22 0.402 327 -30.413 &lt;0.0001
+ Chinstrap female - Gentoo female      1.01 0.500 327   2.019  0.3338
+ Chinstrap female - Adelie male        6.18 0.481 327  12.860 &lt;0.0001
+ Chinstrap female - Chinstrap male    -4.52 0.562 327  -8.049 &lt;0.0001
+ Chinstrap female - Gentoo male       -2.90 0.496 327  -5.852 &lt;0.0001
+ Gentoo female - Adelie male           5.17 0.407 327  12.702 &lt;0.0001
+ Gentoo female - Chinstrap male       -5.53 0.500 327 -11.057 &lt;0.0001
+ Gentoo female - Gentoo male          -3.91 0.425 327  -9.207 &lt;0.0001
+ Adelie male - Chinstrap male        -10.70 0.481 327 -22.263 &lt;0.0001
+ Adelie male - Gentoo male            -9.08 0.402 327 -22.613 &lt;0.0001
+ Chinstrap male - Gentoo male          1.62 0.496 327   3.270  0.0150
+
+P value adjustment: tukey method for comparing a family of 6 estimates </code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb52"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 상호작용 및 평균 지점 시각화</span></span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a><span class="fu">emmip</span>(two_way_sex, sex <span class="sc">~</span> species, <span class="at">CIs =</span> T) <span class="co">#CIs는 신뢰구간(Confidence Interval)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/unnamed-chunk-6-4.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
 </section>
 </section>
 <section id="범주형-변수빈도비율-비교" class="level2">
@@ -453,71 +711,6 @@ alternative hypothesis: true location shift is not equal to 0</code></pre>
 <ul>
 <li>ADP 실기에서는 <strong>“가설 설정 -&gt; 유의수준(<strong><span class="math inline">\(\alpha\)</span>) 확인 -&gt; 검정통계량 및 p-value 계산 -&gt; 채택/기각 판정”의 전 과정을 서술해야 합니다. 특히 p-value가 0.05보다 작을 때 </strong>”귀무가설을 기각하고 대립가설을 채택한다”</strong>는 결론을 데이터 맥락에 맞춰 쓰는 연습이 중요합니다.</li>
 </ul>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 데이터 준비 (iris 데이터의 품종별 Sepal.Width 비교)</span></span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(iris)</span>
-<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 가정 검정 (정규성 &amp; 등분산성)</span></span>
-<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 정규성 검정 (shapiro.test)</span></span>
-<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="fu">by</span>(iris<span class="sc">$</span>Sepal.Width, iris<span class="sc">$</span>Species, shapiro.test) </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>iris$Species: setosa
-
-    Shapiro-Wilk normality test
-
-data:  dd[x, ]
-W = 0.97172, p-value = 0.2715
-
------------------------------------------------------------- 
-iris$Species: versicolor
-
-    Shapiro-Wilk normality test
-
-data:  dd[x, ]
-W = 0.97413, p-value = 0.338
-
------------------------------------------------------------- 
-iris$Species: virginica
-
-    Shapiro-Wilk normality test
-
-data:  dd[x, ]
-W = 0.96739, p-value = 0.1809</code></pre>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 등분산 검정 (leveneTest는 car 패키지 필요)</span></span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(car)</span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="fu">leveneTest</span>(Sepal.Width <span class="sc">~</span> Species, <span class="at">data =</span> iris)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>Levene's Test for Homogeneity of Variance (center = median)
-       Df F value Pr(&gt;F)
-group   2  0.5902 0.5555
-      147               </code></pre>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. ANOVA 수행</span></span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>anova_result <span class="ot">&lt;-</span> <span class="fu">aov</span>(Sepal.Width <span class="sc">~</span> Species, <span class="at">data =</span> iris)</span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(anova_result)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>             Df Sum Sq Mean Sq F value Pr(&gt;F)    
-Species       2  11.35   5.672   49.16 &lt;2e-16 ***
-Residuals   147  16.96   0.115                   
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 사후 검정 (p-value &lt; 0.05인 경우 실행)</span></span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="fu">TukeyHSD</span>(anova_result)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>  Tukey multiple comparisons of means
-    95% family-wise confidence level
-
-Fit: aov(formula = Sepal.Width ~ Species, data = iris)
-
-$Species
-                       diff         lwr        upr     p adj
-versicolor-setosa    -0.658 -0.81885528 -0.4971447 0.0000000
-virginica-setosa     -0.454 -0.61485528 -0.2931447 0.0000000
-virginica-versicolor  0.204  0.04314472  0.3648553 0.0087802</code></pre>
-</div>
-</div>
 </section>
 </section>
 <section id="데이터마이닝" class="level1">
@@ -589,26 +782,26 @@ virginica-versicolor  0.204  0.04314472  0.3648553 0.0087802</code></pre>
 </ol>
 <p>혹시 이 중에서 **“분류 모델 생성부터 평가 지표 산출까지의 전체 파이썬 코드 흐름”**을 예시로 보여드릴까요? 가장 점수 비중이 큽니다.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(caret)</span>
-<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 데이터 분할 (7:3)</span></span>
-<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
-<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>train_idx <span class="ot">&lt;-</span> <span class="fu">createDataPartition</span>(iris<span class="sc">$</span>Species, <span class="at">p =</span> <span class="fl">0.7</span>, <span class="at">list =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>train_data <span class="ot">&lt;-</span> iris[train_idx, ]</span>
-<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>test_data <span class="ot">&lt;-</span> iris[<span class="sc">-</span>train_idx, ]</span>
-<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 스케일링 (필요시 수행, Random Forest는 필수는 아님)</span></span>
-<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a><span class="co"># preProc &lt;- preProcess(train_data, method = c("center", "scale"))</span></span>
-<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a><span class="co"># train_scaled &lt;- predict(preProc, train_data)</span></span>
-<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(randomForest)</span>
-<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 모델 생성</span></span>
-<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a>rf_model <span class="ot">&lt;-</span> <span class="fu">randomForest</span>(Species <span class="sc">~</span> ., <span class="at">data =</span> train_data, </span>
-<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a>                         <span class="at">ntree =</span> <span class="dv">500</span>, <span class="at">importance =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 변수 중요도 확인 (ADP에서 자주 묻는 질문)</span></span>
-<span id="cb35-20"><a href="#cb35-20" aria-hidden="true" tabindex="-1"></a><span class="fu">importance</span>(rf_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb53"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(caret)</span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 데이터 분할 (7:3)</span></span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb53-5"><a href="#cb53-5" aria-hidden="true" tabindex="-1"></a>train_idx <span class="ot">&lt;-</span> <span class="fu">createDataPartition</span>(iris<span class="sc">$</span>Species, <span class="at">p =</span> <span class="fl">0.7</span>, <span class="at">list =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb53-6"><a href="#cb53-6" aria-hidden="true" tabindex="-1"></a>train_data <span class="ot">&lt;-</span> iris[train_idx, ]</span>
+<span id="cb53-7"><a href="#cb53-7" aria-hidden="true" tabindex="-1"></a>test_data <span class="ot">&lt;-</span> iris[<span class="sc">-</span>train_idx, ]</span>
+<span id="cb53-8"><a href="#cb53-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-9"><a href="#cb53-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 스케일링 (필요시 수행, Random Forest는 필수는 아님)</span></span>
+<span id="cb53-10"><a href="#cb53-10" aria-hidden="true" tabindex="-1"></a><span class="co"># preProc &lt;- preProcess(train_data, method = c("center", "scale"))</span></span>
+<span id="cb53-11"><a href="#cb53-11" aria-hidden="true" tabindex="-1"></a><span class="co"># train_scaled &lt;- predict(preProc, train_data)</span></span>
+<span id="cb53-12"><a href="#cb53-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-13"><a href="#cb53-13" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(randomForest)</span>
+<span id="cb53-14"><a href="#cb53-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-15"><a href="#cb53-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 모델 생성</span></span>
+<span id="cb53-16"><a href="#cb53-16" aria-hidden="true" tabindex="-1"></a>rf_model <span class="ot">&lt;-</span> <span class="fu">randomForest</span>(Species <span class="sc">~</span> ., <span class="at">data =</span> train_data, </span>
+<span id="cb53-17"><a href="#cb53-17" aria-hidden="true" tabindex="-1"></a>                         <span class="at">ntree =</span> <span class="dv">500</span>, <span class="at">importance =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb53-18"><a href="#cb53-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-19"><a href="#cb53-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 변수 중요도 확인 (ADP에서 자주 묻는 질문)</span></span>
+<span id="cb53-20"><a href="#cb53-20" aria-hidden="true" tabindex="-1"></a><span class="fu">importance</span>(rf_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>                setosa versicolor virginica MeanDecreaseAccuracy
 Sepal.Length  7.087994   7.631919  7.235017            10.485142
@@ -621,7 +814,7 @@ Sepal.Width          1.527942
 Petal.Length        29.418350
 Petal.Width         30.947481</code></pre>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="fu">varImpPlot</span>(rf_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb55"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="fu">varImpPlot</span>(rf_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -629,11 +822,11 @@ Petal.Width         30.947481</code></pre>
 </figure>
 </div>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 예측</span></span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>pred <span class="ot">&lt;-</span> <span class="fu">predict</span>(rf_model, test_data)</span>
-<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 혼동 행렬 (Confusion Matrix) 및 지표 산출</span></span>
-<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a><span class="fu">confusionMatrix</span>(pred, test_data<span class="sc">$</span>Species)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb56"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 예측</span></span>
+<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a>pred <span class="ot">&lt;-</span> <span class="fu">predict</span>(rf_model, test_data)</span>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-4"><a href="#cb56-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 혼동 행렬 (Confusion Matrix) 및 지표 산출</span></span>
+<span id="cb56-5"><a href="#cb56-5" aria-hidden="true" tabindex="-1"></a><span class="fu">confusionMatrix</span>(pred, test_data<span class="sc">$</span>Species)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Confusion Matrix and Statistics
 
@@ -668,11 +861,11 @@ Balanced Accuracy           1.0000            0.9333           0.9167</code></pr
 </div>
 </div>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 모델 생성</span></span>
-<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>lm_model <span class="ot">&lt;-</span> <span class="fu">lm</span>(Sepal.Length <span class="sc">~</span> ., <span class="at">data =</span> train_data)</span>
-<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 요약 결과 확인 (p-value, R-squared 확인)</span></span>
-<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(lm_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb58"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 모델 생성</span></span>
+<span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a>lm_model <span class="ot">&lt;-</span> <span class="fu">lm</span>(Sepal.Length <span class="sc">~</span> ., <span class="at">data =</span> train_data)</span>
+<span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb58-4"><a href="#cb58-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 요약 결과 확인 (p-value, R-squared 확인)</span></span>
+<span id="cb58-5"><a href="#cb58-5" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(lm_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>
 Call:
@@ -697,8 +890,8 @@ Residual standard error: 0.3142 on 99 degrees of freedom
 Multiple R-squared:  0.8697,    Adjusted R-squared:  0.8631 
 F-statistic: 132.2 on 5 and 99 DF,  p-value: &lt; 2.2e-16</code></pre>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 다중공선성 확인 (VIF 10 이상이면 위험)</span></span>
-<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="fu">vif</span>(lm_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb60"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 다중공선성 확인 (VIF 10 이상이면 위험)</span></span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a><span class="fu">vif</span>(lm_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>                  GVIF Df GVIF^(1/(2*Df))
 Sepal.Width   1.992304  1        1.411490
@@ -706,8 +899,8 @@ Petal.Length 23.083942  1        4.804575
 Petal.Width  20.810109  1        4.561810
 Species      41.580209  2        2.539345</code></pre>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 잔차 진단 (회귀 분석의 4대 가정 확인)</span></span>
-<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(lm_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb62"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 잔차 진단 (회귀 분석의 4대 가정 확인)</span></span>
+<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(lm_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
