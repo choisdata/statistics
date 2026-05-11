@@ -237,6 +237,60 @@ emmip(two_way_sex, sex ~ species, CIs = T) #CIs는 신뢰구간(Confidence Inter
     -   독립성 검정 : 두 범주형 변수간에 연관성이 있는지 확인(예:성별과 선호 정당)
     -   동질성 검정 (Test of Homogeneity): 여러 모집단에서 범주별 비율이 같은지 확인.
 
+
+```{r}
+# 범주형 변수의 빈도표 만들기(table or xtabs)
+table(penguins$species, penguins$island)
+many_var <- table(penguins$species, penguins$island, penguins$sex)
+
+xtabs(~species + island, data = penguins)
+many_var <- xtabs(~species + island + sex, data = penguins) #xtabs를 사용하면 fomula 형식으로 더 깔끔하게 코드를 만들 수 있다.
+ftable(many_var) #Flatten 형태로 평면으로 출력하기
+
+### 적합도 검정
+#관측된 비율이 예상한 이론적 비율과 일치하는지 확인
+# 1. 실제 관측 빈도
+obs_counts <- table(penguins$species)
+
+# 2. 예상 비율 설정 (예: 세 종의 비율이 동일하다면 1/3씩)
+expected_probs <- c(1/3, 1/3, 1/3)
+
+# 3. 적합도 검정 수행
+chisq.test(obs_counts, p = expected_probs)
+
+# p-value가 0.05보다 작으므로 예상 빈도와 다르다고 판단한다.
+
+
+### 독립성 검정
+table_data <- xtabs(~species + island, data = penguins)
+chisq.test(table_data)
+# 검정결과 p-value가 0.05보다 작으므로 species와 island는 서로 독립적이지 않다.
+chisq.test(penguins$species, penguins$island) #table 형태로 작성하지 않아도 동작하긴함.
+
+#시각화
+mosaicplot(table_data, main = "Species by Island", color = T)
+
+
+### 동질성 검정(독립성검정과 코드 동일하다. 데이터를 수집하는 관점(설계)에서 차이)
+# 1. xtabs를 사용하여 성별에 따른 종의 분포를 표로 만들기기
+homo_tab <- xtabs(~ sex + species, data = na.omit(penguins))
+
+
+# 2. 카이제곱 동질성 검정 수행
+# 가설: "수컷 집단의 종 비율과 암컷 집단의 종 비율은 동일하다."
+chisq.test(homo_tab)
+# p-value가 0.05보다 크므로 수컷/암컷 집단의 종 비율은 동일하다.
+
+# 비율로 변환하여 시각화
+prop_tab <- prop.table(homo_tab, margin = 1) # 행(sex) 기준으로 비율 계산
+
+barplot(t(prop_tab), 
+        col = c("orange", "purple", "cyan"), 
+        legend = colnames(homo_tab),
+        main = "Species Distribution by Sex",
+        xlab = "Sex", ylab = "Proportion")
+```
+
 ## 1-3. 상관 및 회귀 분석 관련 검정
 
 -   상관분석 (Correlation Analysis): 두 연속형 변수 간의 선형적 관계 확인 (Pearson, Spearman).
