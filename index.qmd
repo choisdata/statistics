@@ -24,12 +24,13 @@ library(lubridate)
 library(tidyr)
 library(ggplot2)
 library(tidymodels)
-library(caret)
+library(caret) #통계모델델
 library(car)
 library(DataExplorer)
 library(skimr)
 library(palmerpenguins)
 library(emmeans)
+library(janitor) # 변수명 정리
 ```
 
 # 1. 통계적 가설 검정
@@ -303,6 +304,85 @@ barplot(t(prop_tab),
 
 -   ADP 실기에서는 **"가설 설정 -\> 유의수준(**$\alpha$) 확인 -\> 검정통계량 및 p-value 계산 -\> 채택/기각 판정"의 전 과정을 서술해야 합니다. 특히 p-value가 0.05보다 작을 때 **"귀무가설을 기각하고 대립가설을 채택한다"**는 결론을 데이터 맥락에 맞춰 쓰는 연습이 중요합니다.
 
+```{r}
+penguins_clean <- na.omit(penguins)
+
+# 1. 상관계수 계산 (Pearson)
+cor_val <- cor(penguins_clean$bill_length_mm, penguins_clean$body_mass_g)
+cor_val <- cor(penguins_clean %>% select(where(is.numeric)))
+
+# 2. 유의성 검정 (p-value 확인)
+cor.test(penguins_clean$bill_length_mm, penguins_clean$body_mass_g)
+mt_data <- as.matrix(penguins_clean[, c("bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g")]) #cor.test는 두개변수간의 상관계수 p-value만 확인 가능
+
+# Hmisc, psych 패키지에서 여러변수 한 번에 계산
+res <- Hmisc::rcorr(penguins_clean %>% select(where(is.numeric)) %>% as.matrix())
+
+# 결과 확인
+res$r # 상관계수 행렬
+res$P # p-value 행렬
+
+
+library(psych)
+res_psych <- corr.test(penguins_clean %>% select(where(is.numeric)) %>% as.matrix(), 
+                       method = "pearson")
+# p-value 행렬 출력
+print(res_psych$p, digits = 3)
+
+# inspect_df 패키지를 활용한 방법(corr, p_value, 신뢰구간 표시로 보기 편함. 시각화 쉬움움)
+res <- inspectdf::inspect_cor(penguins_clean %>% select(where(is.numeric))) %>% arrange(p_value)
+inspectdf::show_plot(res)
+```
+```{r}
+## 회귀 모델 ##
+penguins_clean <- na.omit(palmerpenguins::penguins)
+model <- lm(body_mass_g ~ bill_length_mm + flipper_length_mm, data = penguins_clean)
+
+# 전체 결과 요약
+summary(model)
+
+# t-검정 (개별 계수 중 어떤게 유의미 한지)은 결과표의 p-value를 확인한다 
+# F-검정 (만들어진 모델이 쓸만한지)은 결과표 하단의 F-statistic과 p-value를 확인한다.
+
+# 잔차 분석
+par(mfrow = c(2, 2)) # 4개 그래프를 한 화면에 출력
+plot(model)
+# 결과 그림 설명
+# Residuals vs Fitted(선형성) : 점들이 0을 중심으로 위아래로 무작위하게 흩어져 있어야 함.
+# Normal Q-Q(정규성) : 점들이 대각선 점선 위에 일렬로 놓여 있어야 함.
+#(Normal Q-Q 선에서 점들이 많이 벗어나 났다면 데이터의 변환(Log 등)이나 이상치 제거가 필요할 수 있음)
+# Scale-Location(등분산성) : 빨간 실선이 수평을 유지하고 점들의 퍼짐 정도가 일정해야 함.
+# Residuals vs Leverage(영향력 점(Outliers)) : Cook's distance 선 밖에 있는 유난히 튀는 데이터가 없어야 함.그래프에서 우측 상단이나 하단의 점선(Cook's Distance) 근처에 있거나, 유난히 가로(Leverage)로 멀리 떨어져 있는 데이터들은 모델 전체를 흔들 수 있는 영향력 있는 관측치임.
+
+#추가 분석
+# 1. 다중공선성 확인 (VIF) - 10 이상이면 위험
+car::vif(model)
+
+# 2. 잔차의 독립성 (Durbin-Watson 검정) - 2에 가까워야 함
+car::durbinWatsonTest(model)
+
+# 3. 잔차의 정규성 (Shapiro-Wilk 검정) - p > 0.05면 정규성 만족
+shapiro.test(residuals(model))
+
+# 원 data와 lm model로 구한 data 비교하기기
+fitted_values <- predict(model)
+res_data <- data.frame(orgin_data = penguins_clean$body_mass_g, 
+                       pred_data = fitted_values)
+plot(res_data$orgin_data, res_data$pred_data)
+
+## new data에 대한 예측값 구하기 ##
+# 1. 새로운 데이터 생성 (부리 길이가 40, 50, 60인 경우)
+new_penguins <- data.frame(bill_length_mm = c(40, 50, 60),
+                           flipper_length_mm = c(200, 220, 230))
+
+# 2. 예측 수행
+new_pred <- predict(model, newdata = new_penguins)
+
+# 3. 결과 확인
+new_penguins$pred_weight <- new_pred
+new_penguins
+
+```
 
 
 # 2. 데이터마이닝
@@ -322,6 +402,214 @@ barplot(t(prop_tab),
 -   **로지스틱 회귀 (Logistic Regression):** 분류 문제의 베이스라인 모델로, 오즈비(Odds Ratio) 해석이 중요합니다.
 
 -   **나이브 베이즈 (Naive Bayes):** 텍스트 분류나 베이즈 정리를 이용한 확률적 분류.
+
+```{r}
+# 의사결정나무는 나무1그루가 의사결정, 랜덤 포레스트는 나무들의 병렬 합산 (Bagging), XGBoost 나무들의 직렬 보완 (Boosting) 방식이다. 일반적으로 성능은 의사결정나무 < 랜덤포레스트 < XGBoost이다.
+
+## 의사결정나무
+# 1. 필수 패키지 로드
+library(AmesHousing) # 데이터셋
+library(janitor)     # 변수명 정제
+library(caret)       # 머신러닝 워크플로우 통합
+library(rpart.plot)  # 의사결정나무 시각화
+
+# 2. 데이터 불러오기 및 초기 정제
+raw_ames <- ames_raw
+
+ames_processed <- raw_ames %>%
+  janitor::clean_names() %>% #변수명 깨끗이이
+  mutate(across(where(is.character), as.factor)) %>%   # 범주형(Factor)으로 변환 (분류 모델의 필수 조건)
+  mutate(price_grade = ifelse(sale_price > median(sale_price), "High", "Low")) %>% # 분류를 위해 종속변수 생성 
+  mutate(price_grade = as.factor(price_grade)) %>%
+  select(-sale_price) %>%  #원래 숫자형 가격 변수는 제거 (학습 방해 방지)
+  select(price_grade, gr_liv_area, overall_qual, neighborhood, year_built, total_bsmt_sf) %>%
+  na.omit() #원하는 변수만 선택하고 NA 제거
+# origin data 상에서 NA를 제거 하지 않고, 아래 train 함수 안에서 아래처럼 결측치를 채워줘도 된다.
+
+
+# 3. 데이터 분할 
+set.seed(123) # 결과 재현성 확보
+train_idx <- createDataPartition(ames_processed$price_grade, p = 0.8, list = FALSE) #(Train 80% / Test 20%)
+train_data <- ames_processed[train_idx, ]
+test_data  <- ames_processed[-train_idx, ]
+
+# 4. 모델 학습 설정 (교차 검증)
+# 과적합을 방지하고 최적의 CP값을 찾음
+train_control <- trainControl(
+  method = "cv", 
+  number = 5, #5-Fold 교차 검증
+  classProbs = TRUE,                   # 클래스별 확률 계산
+  summaryFunction = defaultSummary     # 정확도(Accuracy) 기준 평가
+)
+
+# 5. 의사결정나무 모델 학습 및 자동 가지치기
+# tuneLength = 10: 10개의 CP 후보군을 테스트하여 가장 성적이 좋은 모델을 자동 선택합니다.
+dt_model <- train(
+  price_grade ~ gr_liv_area + overall_qual + neighborhood + year_built + total_bsmt_sf,
+  data = train_data,
+  method = "rpart",
+  trControl = train_control,
+  tuneLength = 10,
+  metric = "Accuracy"
+  # na.action을 pass로 설정하고 preProcess에서 imputation(대체) 수행
+  #na.action = na.pass, 
+  #preProcess = c("medianImpute", "center", "scale") # 중앙값으로 결측치 채움
+)
+
+# 6. 학습 결과 확인
+print(dt_model)
+
+# 7. 최종 모델 시각화 (가지치기가 완료된 상태)
+rpart.plot(dt_model$finalModel, 
+           type = 4, 
+           extra = 104, 
+           under = TRUE, 
+           box.palette = "RdBu",
+           main = "Ames Housing Price Classification Tree")
+
+# 8. 테스트 데이터를 통한 최종 성능 검증
+predictions <- predict(dt_model, newdata = test_data)
+
+# 혼동 행렬(Confusion Matrix) 출력
+conf_matrix <- confusionMatrix(predictions, test_data$price_grade)
+print(conf_matrix)
+
+# 9. 변수 중요도 확인 (어떤 요인이 집값을 결정짓는가?)
+var_imp <- varImp(dt_model)
+plot(var_imp, main = "Variable Importance")
+```
+```{r}
+## 랜덤포레스트
+library(randomForest) # 랜덤 포레스트 엔진
+
+# 2. 모델 학습 설정 (5-Fold 교차 검증)
+# 랜덤 포레스트는 계산량이 많으므로 CV 횟수를 적절히 조절한다.
+train_control <- trainControl(
+  method = "cv", 
+  number = 5,
+  allowParallel = TRUE # 컴퓨터 자원을 병렬로 사용하여 속도 향상
+)
+
+# 3. 랜덤 포레스트 모델 학습
+# method = "rf" 가 랜덤 포레스트를 의미합니다.
+# tuneLength = 3: mtry(각 분할에서 무작위로 선택할 변수 개수) 후보군을 테스트합니다.
+rf_model <- train(
+  price_grade ~ gr_liv_area + overall_qual + neighborhood + year_built + total_bsmt_sf,
+  data = train_data,
+  method = "rf",
+  trControl = train_control,
+  tuneLength = 3,
+  ntree = 500,        # 나무의 개수 (기본 500개)
+  importance = TRUE    # 변수 중요도 계산 활성화
+)
+# 랜덤 포레스트는 나무를 500그루씩 만들기 때문에 rpart보다 훨씬 오래 걸린다. 데이터가 크다면 tuneLength를 작게 잡는게 좋다.
+
+# 4. 학습 결과 및 최적의 파라미터(mtry) 확인
+print(rf_model)
+
+# 테스트 데이터 예측
+rf_predictions <- predict(rf_model, newdata = test_data)
+
+# 혼동 행렬(Confusion Matrix)
+rf_conf <- confusionMatrix(rf_predictions, test_data$price_grade)
+print(rf_conf)
+
+# 변수 중요도 시각화
+plot(varImp(rf_model), main = "Random Forest Variable Importance")
+```
+```{r}
+## XGBoost
+library(xgboost)
+
+# 2. 학습 설정 (5-Fold 교차 검증)
+train_control <- trainControl(
+  method = "cv", 
+  number = 5,
+  allowParallel = TRUE,
+  verboseIter = FALSE # 학습 과정 로그 출력 여부
+)
+
+# 3. XGBoost 모델 학습
+# method = "xgbTree" 사용
+# XGBoost는 결측치를 자체적으로 처리할 수 있어 na.action = na.pass 설정이 가능합니다.
+xgb_model <- train(
+  price_grade ~ gr_liv_area + overall_qual + neighborhood + year_built + total_bsmt_sf,
+  data = train_data,
+  method = "xgbTree",
+  trControl = train_control,
+  tuneLength = 3,       # caret이 nrounds, max_depth 등을 조합하여 3가지 세트를 테스트
+  na.action = na.pass   # 결측치를 통과시키면 xgboost 내부에서 최적의 방향으로 분류함
+)
+
+# 하이퍼파라미터의 지옥: XGBoost는 nrounds(나무 개수), max_depth(깊이), eta(학습률), gamma 등 조절할게 아주 많습니다. tuneLength를 키울수록 성능은 좋아지지만 시간이 기하급수적으로 늘어납니다.
+# tuneLength = 3을 설정하면, caret이 nrounds, max_depth, eta, gamma 등 주요 파라미터 7종류에 대해 각각 3개씩 후보군을 조합하여 자동으로 테스트함.
+# 만약 자동 튜닝이 아니라, 사용자가 파라미터를 결정하고 싶다면, train 안에서 tuneGrid 인자를 사용해야 함.
+
+# 4. 최적의 파라미터 조합 확인
+print(xgb_model)
+
+# 예측
+xgb_predictions <- predict(xgb_model, newdata = test_data)
+
+# 성능 확인
+xgb_conf <- confusionMatrix(xgb_predictions, test_data$price_grade)
+print(xgb_conf)
+# 변수 중요도 시각화
+plot(varImp(xgb_model), main = "XGBoost Variable Importance")
+
+```
+
+```{r}
+##LightGBM
+# LightGBM은 이름 그대로 'Light'하여 대용량 데이터에서 XGBoost보다 훨씬 빠르며 메모리를 적게 사용함.
+# LightGBM은 Leaf-wise(리프 중심) 분할 방식을 사용하여, 다른 모델들이 층별로 나무를 키울 때 혼자서 손실이 가장 큰 노드를 찾아 깊게 파고듭니다. 이 덕분에 정확도가 높지만, 데이터가 적을 때는 과적합(Overfitting) 위험이 있어 튜닝이 중요
+
+
+
+```
+```{r}
+##로지스틱 회귀 (Logistic Regression)
+
+# 2. 학습 설정 (5-Fold 교차 검증)
+# 로지스틱 회귀는 계산이 매우 빠르므로 검증이 순식간에 끝납니다.
+train_control <- trainControl(
+  method = "cv", 
+  number = 5,
+  classProbs = TRUE,                  # 확률값 계산 활성화
+  summaryFunction = defaultSummary     # Accuracy 기준 평가
+)
+
+# 3. 로지스틱 회귀 모델 학습
+# family = "binomial"은 이진 분류(Logistic)를 수행하라는 의미입니다.
+# train 함수 내에 preProcess = c("center", "scale")를 추가하여 표준화를 진행할 수 있음.
+log_model <- train(
+  price_grade ~ gr_liv_area + overall_qual + neighborhood + year_built + total_bsmt_sf,
+  data = train_data,
+  method = "glm", #일반화 선형 모델
+  family = "binomial", #타겟 변수가 두 개의 범주(High/Low)일 때 사용하는 옵션입니다. 이 옵션이 있어야 선형 회귀가 아닌 '로지스틱' 회귀로 작동
+  trControl = train_control
+)
+
+
+# 4. 모델 결과 요약 및 해석
+# 모델의 계수(Coefficients)를 통해 어떤 변수가 영향력이 큰지 확인할 수 있습니다.
+summary(log_model$finalModel)
+
+# 5. 테스트 데이터를 통한 성능 평가
+log_preds <- predict(log_model, newdata = test_data)
+log_cm <- confusionMatrix(log_preds, test_data$price_grade)
+
+# 최종 결과 출력
+print(log_cm)
+```
+```{r}
+##나이브 베이즈 (Naive Bayes)
+```
+
+
+
+
+
 
 ### 회귀 (Regression)
 
